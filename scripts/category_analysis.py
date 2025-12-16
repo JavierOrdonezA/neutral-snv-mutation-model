@@ -772,7 +772,65 @@ def poisson_rate_ratio_test(
     exposure_group_b: float,
 ):
     """
-    Exact Poisson rate ratio test using conditioning on total events.
+    Exact Poisson rate ratio test using conditioning on the total number
+    of observed events.
+
+    This function tests whether two event rates are equal when counts are
+    assumed to arise from independent Poisson processes with different
+    exposures.
+
+    Statistical model
+    -----------------
+    Let
+
+        X ~ Poisson(λ_A * E_A)
+        Y ~ Poisson(λ_B * E_B)
+
+    where:
+        - X, Y are observed event counts,
+        - λ_A, λ_B are the underlying event rates,
+        - E_A, E_B are known exposures (e.g. number of mutation opportunities,
+          genomic length, or time at risk).
+
+    Hypotheses
+    ----------
+    H0: λ_A = λ_B   (equal rates)
+    H1: λ_A ≠ λ_B   (different rates)
+
+    Conditioning argument (key idea)
+    --------------------------------
+    Under H0, conditioning on the total number of observed events
+
+        T = X + Y
+
+    removes the nuisance parameter λ and yields:
+
+        X | (X + Y = T) ~ Binomial(
+            T,
+            p = E_A / (E_A + E_B)
+        )
+
+    This allows an *exact* test using a binomial distribution, avoiding
+    asymptotic approximations.
+
+    Interpretation
+    --------------
+    - The p-value tests whether the observed allocation of events between
+      groups A and B is compatible with equal Poisson rates, given their
+      relative exposures.
+    - The rate ratio estimates the relative mutation/event intensity between
+      groups.
+
+    This test is particularly appropriate when:
+        - Counts are low or sparse
+        - Exposures differ between groups
+        - An exact (non-asymptotic) test is desired
+
+    References
+    ----------
+    - Sahai & Khurshid (1993), Statistics in Epidemiology
+    - rateratio.test R vignette:
+      https://cran.r-project.org/web/packages/rateratio.test/vignettes/rateratio.test.pdf
 
     Parameters
     ----------
@@ -783,12 +841,16 @@ def poisson_rate_ratio_test(
     count_group_b : int
         Number of observed events in group B.
     exposure_group_b : float
-        Total exposure for group B.
+        Total exposure (e.g. opportunities, time at risk) for group B.
 
     Returns
     -------
     dict
-        Exact test results including rates, rate ratio, and p-value.
+        Dictionary containing:
+        - rate_group_a : estimated rate in group A (count / exposure)
+        - rate_group_b : estimated rate in group B (count / exposure)
+        - rate_ratio   : rate_group_a / rate_group_b
+        - p_value      : exact two-sided p-value for H0: λ_A = λ_B
     """
 
     "https://cran.r-project.org/web/packages/rateratio.test/vignettes/rateratio.test.pdf"
@@ -892,7 +954,6 @@ df_results_3_mers
 df_results_5_mers
 
 # %%
-
 # %%
 
 
