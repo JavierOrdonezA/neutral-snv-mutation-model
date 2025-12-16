@@ -248,6 +248,18 @@ for study in mutations_per_study.index[0:10]:
 # %%
 # %%
 # %%
+out_dir = pathlib.Path(
+    "/Users/fordonez/Documents/PhD_Thesis/Task_16_dN_dS/scripts/selection/mutation_matrix_density_MC3"
+)
+out_dir.mkdir(exist_ok=True)
+
+for study, mat_dict in density_mats.items():
+    for kmer_type, df in mat_dict.items():  # kmer_type: '5mer' or '3mer'
+        file_path = out_dir / f"{study}_{kmer_type}.parquet"
+        print(f"Saving {file_path.name} ({len(df)} rows)")
+        df.to_parquet(file_path, index=False)
+# %%
+# %%
 # %%
 # %%
 # %%
