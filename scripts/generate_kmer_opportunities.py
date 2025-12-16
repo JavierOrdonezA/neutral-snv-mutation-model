@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 data_dir = REPO_ROOT / "data"
 
 maf_path = (data_dir / "example_maf"
-            / "MC3_TCGA_bed_with_maf38_filtered_hg38_annotated.parquet")
+            / "MC3_TCGA_bed_with_maf38_filtered_hg38_annotated_all.parquet")
 
 
 def compute_mutation_opportunities(
@@ -198,6 +198,7 @@ driver_genes_path = (
     data_dir / "driver_genes_2024_06_18_IntOGenCompendium_Cancer_Genes.tsv")
 driver_genes = pd.read_csv(driver_genes_path, sep="\t")
 
+
 # %%
 path_all_mutation_no_overlaped = "/Users/fordonez/Documents/PhD_Thesis/Task_16_dN_dS/data/all_chromosomes_bases_MUT_NO_dupli_k_mer.parquet"
 path_all_mutation = "/Users/fordonez/Documents/PhD_Thesis/Task_16_dN_dS/data/all_chromosomes_bases_MUT_with_dupli_k_mer.parquet"
@@ -231,8 +232,12 @@ for study in mutations_per_study.index[0:10]:
     df_sim = simulated_all_mutation_no_overlaped[
         (~simulated_all_mutation_no_overlaped["gene_name"].isin(driver_genes_for_study)) &
         (simulated_all_mutation_no_overlaped["mutation_type"].isin(
-            mutation_types_used))
-    ].copy()
+            mutation_types_used))].copy()
+
+    # df_sim = simulated_all_mutation_all[
+    #    (~simulated_all_mutation_all["gene_name"].isin(driver_genes_for_study)) &
+    #    (simulated_all_mutation_all["mutation_type"].isin(
+    #        mutation_types_used))].copy()
 
     print(
         f"Processing {study}: "
@@ -293,7 +298,7 @@ path_no_over.mkdir(exist_ok=True)
 
 for study, mat_dict in density_mats.items():
     for kmer_type, df in mat_dict.items():  # kmer_type: '5mer' or '3mer'
-        file_path = path_no_over / f"{study}_{kmer_type}.parquet"
+        file_path = path_all / f"{study}_{kmer_type}.parquet"
         print(f"Saving {file_path.name} ({len(df)} rows)")
         df[["k_mer", "mutated_base", "nchance"]
            ].to_parquet(file_path, index=False)
@@ -309,63 +314,6 @@ for study, mat_dict in density_mats.items():
 # %%
 # %%
 # %%
-# %%
-# %%
-# %%
-
-
-# %%
-for study in mutations_per_study.index[0::]:
-    print("==================================")
-    print(f"-------------{study}-------------")
-    print("==================================")
-
-    # --- Driver genes for this study ---
-    driver_genes_for_study = (
-        driver_genes.loc[driver_genes["CANCER_TYPE"] == study, "SYMBOL"]
-        .dropna()
-        .unique()
-    )
-
-    # --- Filter simulated mutations (NO OVERLAP) ---
-    df_sim_no_overlap = simulated_all_mutation_no_overlaped.loc[
-        (~simulated_all_mutation_no_overlaped["gene_name"].isin(
-            driver_genes_for_study))
-        & (simulated_all_mutation_no_overlaped["mutation_type"].isin(mutation_types_used))
-    ].copy()
-
-    # --- Filter simulated mutations (ALL CDS) ---
-    df_sim_all = simulated_all_mutation_all.loc[
-        (~simulated_all_mutation_all["gene_name"].isin(driver_genes_for_study))
-        & (simulated_all_mutation_all["mutation_type"].isin(mutation_types_used))
-    ].copy()
-
-    # --- Compute opportunities ---
-    opp_3_no_overlap = compute_mutation_opportunities(
-        df_sim_no_overlap,
-        kmer_col="3_mer",
-        mutated_base_col="mutated_base",
-        out_col="nchance",
-    )
-    opp_5_no_overlap = compute_mutation_opportunities(
-        df_sim_no_overlap,
-        kmer_col="5_mer",
-        mutated_base_col="mutated_base",
-        out_col="nchance",
-    )
-
-    opp_3_all = compute_mutation_opportunities(
-        df_sim_all,
-        kmer_col="3_mer",
-        mutated_base_col="mutated_base",
-        out_col="nchance",
-    )
-    opp_5_all = compute_mutation_opportunities(
-        df_sim_all,
-        kmer_col="5_mer",
-        mutated_base_col="mutated_base",
-        out_col="nchance",
-    )
 
 
 # %%
