@@ -1055,16 +1055,6 @@ def run_rate_ratio_by_kmer_aligned(
     return results
 
 
-df_kmer_3 = run_rate_ratio_by_kmer_aligned(
-    df_forward_3,
-    df_reverse_3,
-    min_total_events=1,
-)
-df_kmer_5 = run_rate_ratio_by_kmer_aligned(
-    df_forward_5,
-    df_reverse_5,
-    min_total_events=1,
-)
 # %%
 
 
@@ -1109,7 +1099,7 @@ def apply_strand_bias_collapse(
     # Initialize output table
     # --------------------------------------------------
     df_1 = (
-        all_out_3[['k_mer', 'mutated_base', 'strand']]
+        all_out_3[['k_mer', 'mutated_base']]
         .copy()
         .sort_values(by=['k_mer', 'mutated_base'])
     )
@@ -1179,6 +1169,17 @@ def apply_strand_bias_collapse(
 
 
 # %%
+df_kmer_3 = run_rate_ratio_by_kmer_aligned(
+    df_forward_3,
+    df_reverse_3,
+    min_total_events=1,
+)
+df_kmer_5 = run_rate_ratio_by_kmer_aligned(
+    df_forward_5,
+    df_reverse_5,
+    min_total_events=1,
+)
+
 matrix_3_collapse_k_mer = apply_strand_bias_collapse(
     all_out_3, df_kmer_3, alpha=0.05)
 matrix_5_collapse_k_mer = apply_strand_bias_collapse(
@@ -1191,7 +1192,76 @@ matrix_5_no_strand_bias = apply_strand_bias_collapse(
     all_out_5, df_kmer_5, alpha=0)
 
 # %%
-# %%
+
+BASE_OUT = Path(
+    "/Users/fordonez/Documents/neutral-snv-mutation-model/data/kmer_models")
+BASE_OUT.mkdir(parents=True, exist_ok=True)
+
+
+def save_kmer_matrix(
+    df,
+    *,
+    cancer: str,
+    k: int,
+    alpha: float,
+    tag: str,
+):
+    """
+    Save k-mer mutation matrix with explicit metadata in filename.
+    """
+    fname = (
+        f"{cancer}_{k}mer_strand_bias_alpha{alpha:g}_{tag}.parquet"
+    )
+    out_path = BASE_OUT / fname
+
+    df = df.copy()
+    df.attrs["cancer"] = cancer
+    df.attrs["k"] = k
+    df.attrs["strand_bias_alpha"] = alpha
+    df.attrs["model"] = tag
+
+    df.to_parquet(out_path, index=False)
+    print(f"Saved → {out_path}")
+
+
+# --------------------------------------------------
+# k = 3
+# --------------------------------------------------
+save_kmer_matrix(
+    matrix_3_collapse_k_mer,
+    cancer="LUAD",
+    k=3,
+    alpha=0.05,
+    tag="mixed",
+)
+
+save_kmer_matrix(
+    matrix_3_no_strand_bias,
+    cancer="LUAD",
+    k=3,
+    alpha=0,
+    tag="no_strand_bias",
+)
+
+# --------------------------------------------------
+# k = 5
+# --------------------------------------------------
+save_kmer_matrix(
+    matrix_5_collapse_k_mer,
+    cancer="LUAD",
+    k=5,
+    alpha=0.05,
+    tag="mixed",
+)
+
+save_kmer_matrix(
+    matrix_5_no_strand_bias,
+    cancer="LUAD",
+    k=5,
+    alpha=0,
+    tag="no_strand_bias",
+)
+
 # %%
 # %%
 # %%
