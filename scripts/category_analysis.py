@@ -212,14 +212,14 @@ def compute_sbs96(mut_df: pd.DataFrame) -> pd.DataFrame:
     collapsed["density"] = collapsed["nmut"] / collapsed["nchance"]
 
     collapsed = collapsed.rename(
-        columns={"kmer_corrected": "kmer",
+        columns={"kmer_corrected": "k_mer",
                  "mut_base_corrected": "mutated_base"}
     )
 
     # --- Create SBS-96 notation ---
-    base_5p = collapsed["kmer"].str[0]
-    base_mut = collapsed["kmer"].str[1]
-    base_3p = collapsed["kmer"].str[2]
+    base_5p = collapsed["k_mer"].str[0]
+    base_mut = collapsed["k_mer"].str[1]
+    base_3p = collapsed["k_mer"].str[2]
 
     collapsed["sbs96"] = (
         base_5p + "[" + base_mut + ">" +
@@ -304,12 +304,12 @@ def compute_sbs1536(mut_df: pd.DataFrame) -> pd.DataFrame:
     collapsed["density"] = collapsed["nmut"] / collapsed["nchance"]
 
     collapsed = collapsed.rename(
-        columns={"kmer_corrected": "kmer",
+        columns={"kmer_corrected": "k_mer",
                  "mut_base_corrected": "mutated_base"}
     )
 
     # --- Create SBS-1536 notation ---
-    kmer = collapsed["kmer"]
+    kmer = collapsed["k_mer"]
 
     # 5-mer = X1 X2 [Ref>Alt] Y1 Y2
     X1 = kmer.str[0]
@@ -736,14 +736,14 @@ mut_matrix_3 = analyze_reverse_complement_density_vectorized(
 
 # %%
 mut_matrix_3_sbs96 = compute_sbs96(mut_matrix_3)
-# %%
+
+
 all_out_3, df_forward_3, df_reverse_3 = split_kmer_reverse_complements(
     mut_matrix_3)
 
 all_out_5, df_forward_5, df_reverse_5 = split_kmer_reverse_complements(
     mut_matrix_5)
 
-# %%
 df_forward_3_sbs96, df_reverse_3_sbs96 = compute_sbs96(
     df_forward_3), compute_sbs96(df_reverse_3)
 
@@ -851,6 +851,12 @@ def poisson_rate_ratio_test(
         - rate_group_b : estimated rate in group B (count / exposure)
         - rate_ratio   : rate_group_a / rate_group_b
         - p_value      : exact two-sided p-value for H0: λ_A = λ_B
+
+
+    Under the Poisson model, the equality of rates is equivalent to the conditional distribution of events following a binomial with
+
+    #-------"Given what I observed, is there evidence that λ_f ≠ λ_r?"------
+
     """
 
     "https://cran.r-project.org/web/packages/rateratio.test/vignettes/rateratio.test.pdf"
@@ -932,8 +938,9 @@ def run_rate_ratio_by_category(
             "exposure_reverse": exposure_reverse,
             **res,
         })
-
-    return pd.DataFrame(results)
+    results = pd.DataFrame(results) .sort_values(
+        by="p_value").reset_index(drop=True)
+    return results
 
 
 category_tests = ['C>A', 'C>G', 'C>T', 'T>A', 'T>C', 'T>G']
@@ -952,8 +959,6 @@ df_results_5_mers = run_rate_ratio_by_category(
 df_results_3_mers
 # %%
 df_results_5_mers
-
-# %%
 # %%
 
 
@@ -984,21 +989,21 @@ def run_rate_ratio_by_kmer_aligned(
     Returns
     -------
     pd.DataFrame
-        One row per (kmer, mutated_base) with rate ratio statistics.
+        One row per (k_mer, mutated_base) with rate ratio statistics.
     """
     merged = (
-        df_forward[["kmer", "mutated_base", "nmut", "nchance"]]
+        df_forward[["k_mer", "mutated_base", "nmut", "nchance"]]
         .rename(columns={
             "nmut": "nmut_forward",
             "nchance": "nchance_forward",
         })
         .merge(
-            df_reverse[["kmer", "mutated_base", "nmut", "nchance"]]
+            df_reverse[["k_mer", "mutated_base", "nmut", "nchance"]]
             .rename(columns={
                 "nmut": "nmut_reverse",
                 "nchance": "nchance_reverse",
             }),
-            on=["kmer", "mutated_base"],
+            on=["k_mer", "mutated_base"],
             how="inner",
             validate="one_to_one",
         )
@@ -1024,12 +1029,12 @@ def run_rate_ratio_by_kmer_aligned(
         )
 
         results.append({
-            "kmer": row["kmer"],
+            "k_mer": row["k_mer"],
             "mutated_base": row["mutated_base"],
-            "count_forward": int(row["nmut_forward"]),
-            "count_reverse": int(row["nmut_reverse"]),
-            "exposure_forward": row["nchance_forward"],
-            "exposure_reverse": row["nchance_reverse"],
+            "obs_forward": int(row["nmut_forward"]),
+            "obs_reverse": int(row["nmut_reverse"]),
+            "nchance_forward": row["nchance_forward"],
+            "nchance_reverse": row["nchance_reverse"],
             **res,
         })
 
@@ -1039,36 +1044,199 @@ def run_rate_ratio_by_kmer_aligned(
         alpha=0.05,
         method="fdr_bh",
     )[1]
+    results["k_mer_reverse"] = results["k_mer"].apply(reverse_complement)
+    results["mutated_base_reverse"] = results["mutated_base"].apply(
+        complement_base)
+    columns = ['k_mer', 'mutated_base', 'k_mer_reverse',
+               'mutated_base_reverse', 'obs_forward', 'obs_reverse',
+               'nchance_forward', 'nchance_reverse', 'rate_group_a', 'rate_group_b',
+               'rate_ratio', 'p_value', 'p_value_fdr']
+    results = results[columns]
     return results
 
 
 df_kmer_3 = run_rate_ratio_by_kmer_aligned(
-    df_forward_3_sbs96,
-    df_reverse_3_sbs96,
+    df_forward_3,
+    df_reverse_3,
     min_total_events=1,
 )
-# %%
 df_kmer_5 = run_rate_ratio_by_kmer_aligned(
-    df_forward_5_sbs1536,
-    df_reverse_5_sbs1536,
+    df_forward_5,
+    df_reverse_5,
     min_total_events=1,
 )
+# %%
+
+
+def apply_strand_bias_collapse(
+    all_out_3: pd.DataFrame,
+    df_kmer_3: pd.DataFrame,
+    alpha: float = 0.05,
+) -> pd.DataFrame:
+    """
+    Fill nmut and nchance for each (k_mer, mutated_base) by collapsing or
+    separating forward/reverse strands depending on strand-bias test.
+
+    Logic
+    -----
+    - If p_value_fdr > alpha:
+        No strand bias → collapse forward + reverse
+    - Else:
+        Strand bias → keep forward and reverse separated
+
+    Parameters
+    ----------
+    all_out_3 : pd.DataFrame
+        Must contain columns ['k_mer', 'mutated_base', 'strand'].
+    df_kmer_3 : pd.DataFrame
+        Must contain columns:
+        ['k_mer', 'mutated_base',
+         'obs_forward', 'nchance_forward',
+         'k_mer_reverse', 'mutated_base_reverse',
+         'obs_reverse', 'nchance_reverse',
+         'p_value_fdr']
+    alpha : float, optional
+        Significance threshold for strand-bias test (default = 0.05).
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
+        ['k_mer', 'mutated_base', 'strand', 'nmut', 'nchance', 'density'].
+    """
+
+    # --------------------------------------------------
+    # Initialize output table
+    # --------------------------------------------------
+    df_1 = (
+        all_out_3[['k_mer', 'mutated_base', 'strand']]
+        .copy()
+        .sort_values(by=['k_mer', 'mutated_base'])
+    )
+
+    df_1[['nmut', 'nchance']] = np.nan
+    df_1 = df_1.set_index(['k_mer', 'mutated_base'])
+
+    # --------------------------------------------------
+    # Fill values according to strand-bias test
+    # --------------------------------------------------
+    l = 0
+    for _, row in df_kmer_3.iterrows():
+
+        kmer_cano = row['k_mer']
+        mut_base_cano = row['mutated_base']
+
+        obs_cano = row['obs_forward']
+        nchance_cano = row['nchance_forward']
+
+        kmer_rev = row['k_mer_reverse']
+        mut_base_rev = row['mutated_base_reverse']
+
+        obs_rev = row['obs_reverse']
+        nchance_rev = row['nchance_reverse']
+
+        p_value_fdr = row['p_value_fdr']
+
+        # ----------------------------------------------
+        # No strand bias → collapse
+        # ----------------------------------------------
+        if p_value_fdr > alpha:
+            n_obs_total = obs_cano + obs_rev
+            n_chance_total = nchance_cano + nchance_rev
+
+            df_1.loc[(kmer_cano, mut_base_cano),
+                     ['nmut', 'nchance']] = [
+                n_obs_total, n_chance_total
+            ]
+
+            df_1.loc[(kmer_rev, mut_base_rev),
+                     ['nmut', 'nchance']] = [
+                n_obs_total, n_chance_total
+            ]
+            l = l+1
+
+        # ----------------------------------------------
+        # Strand bias → keep separated
+        # ----------------------------------------------
+        else:
+            df_1.loc[(kmer_cano, mut_base_cano),
+                     ['nmut', 'nchance']] = [
+                obs_cano, nchance_cano
+            ]
+
+            df_1.loc[(kmer_rev, mut_base_rev),
+                     ['nmut', 'nchance']] = [
+                obs_rev, nchance_rev
+            ]
+    print(l)
+    # --------------------------------------------------
+    # Final formatting
+    # --------------------------------------------------
+    df_1 = df_1.reset_index()
+    df_1['density'] = df_1['nmut'] / df_1['nchance']
+
+    return df_1
+
+
+# %%
+matrix_3_collapse_k_mer = apply_strand_bias_collapse(
+    all_out_3, df_kmer_3, alpha=0.05)
+matrix_5_collapse_k_mer = apply_strand_bias_collapse(
+    all_out_5, df_kmer_5, alpha=0.05)
+
+
+matrix_3_no_strand_bias = apply_strand_bias_collapse(
+    all_out_3, df_kmer_3, alpha=0)
+matrix_5_no_strand_bias = apply_strand_bias_collapse(
+    all_out_5, df_kmer_5, alpha=0)
 
 # %%
 # %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
 
+
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+# %%
+"""
 
 def canonical_kmer_mut_with_fallback(
     kmer: str,
     mut: str,
     df: pd.DataFrame,
 ) -> tuple[str, str]:
-    """
-    Try (kmer, mut). If not present in df, try reverse-complement.
-    """
+    
+    #Try (k_mer, mut). If not present in df, try reverse-complement.
+    
 
     # 1. Try direct
-    mask = (df["kmer"] == kmer) & (df["mutated_base"] == mut)
+    mask = (df["k_mer"] == kmer) & (df["mutated_base"] == mut)
     if mask.any():
         return kmer, mut
 
@@ -1076,7 +1244,7 @@ def canonical_kmer_mut_with_fallback(
     kmer_rc = reverse_complement(kmer)
     mut_rc = complement_base(mut)
 
-    mask_rc = (df["kmer"] == kmer_rc) & (df["mutated_base"] == mut_rc)
+    mask_rc = (df["k_mer"] == kmer_rc) & (df["mutated_base"] == mut_rc)
     if mask_rc.any():
         return kmer_rc, mut_rc
 
@@ -1085,22 +1253,20 @@ def canonical_kmer_mut_with_fallback(
         f"Mutation not found in SBS96: ({kmer}, {mut}) nor RC ({kmer_rc}, {mut_rc})"
     )
 
-
-kmer_q = "TTT"
-mut_q = "A"
+kmer_q = "AAA"
+mut_q = "T"
 
 kmer_c, mut_c = canonical_kmer_mut_with_fallback(
-    kmer_q,
-    mut_q,
-    df_forward_3_sbs96,
-)
+    kmer_q, mut_q,
+    df_forward_3_sbs96)
 
-df_forward_3_sbs96.query("kmer == @kmer_c and mutated_base == @mut_c")
+df_forward_3_sbs96.query("k_mer == @kmer_c and mutated_base == @mut_c")
+
+df_reverse_3_sbs96.query("k_mer == @kmer_c and mutated_base == @mut_c")
+"""
 # %%
-df_reverse_3_sbs96.query("kmer == @kmer_c and mutated_base == @mut_c")
-# %%
 
-
+# df_forward_3, df_reverse_3
 # %%
 # %%
 # %%
